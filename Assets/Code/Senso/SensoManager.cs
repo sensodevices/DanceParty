@@ -155,7 +155,6 @@ public class SensoManager : MonoBehaviour
             sensoThread.SendHMDOrientation(orientationSource.transform.localEulerAngles.y);
             orientationNextSend = DateTime.Now.AddMilliseconds(orientationSendEveryMS);
         }*/
-
         if (m_bodyEnabled)
         {
             var bodySample = sensoThread.GetBodySample();
@@ -239,7 +238,7 @@ public class SensoManager : MonoBehaviour
         {
             VRCameraHolder.RotateAroundLocal(Vector3.up, dY);
         }
-        Debug.Log(dY);
+        //Debug.Log(dY);
     }
 
     ///

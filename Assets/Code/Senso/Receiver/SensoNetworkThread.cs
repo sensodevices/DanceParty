@@ -28,13 +28,14 @@ public class SensoNetworkThread
     private IPAddress m_ip;
     private Int32 m_port;
 
-    //private Thread m_thread = null; //!< Thread where socket networking happend
-    //private volatile bool m_isRunning; //!< flag if thread should continue running
-    private int RECV_BUFFER_SIZE = 4096; //!< Size of the buffer for read operations
-    private int SEND_BUFFER_SIZE = 4096; //!< Size of the buffer to send
+    //private Thread m_thread = null;     //!< Thread where socket networking happend
+    //private volatile bool m_isRunning;  //!< flag if thread should continue running
+    private int RECV_BUFFER_SIZE = 65536; //!< Size of the buffer for read operations
+    private int SEND_BUFFER_SIZE = 4096;  //!< Size of the buffer to send
     private Byte[] m_buffer;
     private Byte[] outBuffer;
     private int outBufferOffset;
+    private int inBufferOffset = 0;       //!< Offset for read operation
 
     private LinkedList<SensoHandGesture> gestures;
     public int GesturesCount { get; private set; }
@@ -235,7 +236,7 @@ public class SensoNetworkThread
             int readSz = -1;
             try
             {
-                readSz = m_stream.Read(m_buffer, 0, RECV_BUFFER_SIZE);
+                readSz = m_stream.Read(m_buffer, inBufferOffset, RECV_BUFFER_SIZE - inBufferOffset);
             }
             catch (Exception ex)
             {
@@ -244,18 +245,29 @@ public class SensoNetworkThread
             int packetStart = 0;
             if (readSz > 0)
             {
-                for (int i = 0; i < readSz; ++i)
-                    if (m_buffer[i] == '\n')
+                //TODO: while i < readSz?
+                int i;
+                if (m_buffer[inBufferOffset + readSz - 1] == '\n')
+                {
+                    for (i = 0; i < inBufferOffset + readSz; ++i)
                     {
-                        if (m_buffer[packetStart] == '{')
+                        if (m_buffer[i] == '\n') // End of packet found, parse.
                         {
-                            if (ESensoPositionType.Unknown != processJsonStr(Encoding.ASCII.GetString(m_buffer, packetStart, i - packetStart - 1)))
+                            if (m_buffer[packetStart] == '{')
                             {
-                                if (!IsReceiving) IsReceiving = true;
+                                if (ESensoPositionType.Unknown != processJsonStr(Encoding.ASCII.GetString(m_buffer, packetStart, i - packetStart - 1)))
+                                {
+                                    if (!IsReceiving) IsReceiving = true;
+                                }
                             }
+                            packetStart = i + 1;
                         }
-                        packetStart = i + 1;
                     }
+                    inBufferOffset = 0;
+                } else
+                {
+                    inBufferOffset = readSz;
+                }
             }
             else
             {
@@ -301,15 +313,15 @@ public class SensoNetworkThread
         }
         if (parsedData != null)
         {
-            if (parsedData["type"].Value.Equals("position"))
+            if (parsedData["type"].Value.Equals("avatar") || parsedData["type"].Value.Equals("position"))
             {
                 var dataNode = parsedData["data"];
                 receivedType = getPositionFromString(dataNode["type"].Value);
-                if (receivedType == ESensoPositionType.Unknown && dataNode["type"].Value.Equals("body"))
+                if (receivedType == ESensoPositionType.Body)
                 {
                     bodySample.parseJSONNode(dataNode);
                 }
-                if (receivedType == ESensoPositionType.RightHand || receivedType == ESensoPositionType.LeftHand)
+                else if (receivedType == ESensoPositionType.RightHand || receivedType == ESensoPositionType.LeftHand)
                 {
                     try
                     {
@@ -334,9 +346,18 @@ public class SensoNetworkThread
                 int ind = (int)getPositionFromString(dataNode["type"].Value);
                 batteryValues[ind] = dataNode["level"].AsInt;
             }
+            else if (parsedData["type"].Value.Equals("campos"))
+            {
+                // TODO: parse camera position!
+            }
+            else if (parsedData["type"].Value.Equals("state"))
+            {
+                // TODO: parse state here!
+            }
             else
             {
                 Debug.Log("Received unknown type: " + parsedData["type"]);
+                Debug.Log(jsonPacket);
             }
         }
         return receivedType;
@@ -420,6 +441,7 @@ public class SensoNetworkThread
     {
         if (str.Equals("rh")) return ESensoPositionType.RightHand;
         if (str.Equals("lh")) return ESensoPositionType.LeftHand;
+        if (str.Equals("body")) return ESensoPositionType.Body;
         return ESensoPositionType.Unknown;
     }
 }

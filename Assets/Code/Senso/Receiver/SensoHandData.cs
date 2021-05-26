@@ -5,7 +5,7 @@ using SimpleJSON;
 /// @brief Enumeration for all Senso position types
 public enum ESensoPositionType
 {
-	Unknown, RightHand, LeftHand, PositionsCount
+	Unknown, RightHand, LeftHand, Body, PositionsCount
 };
 
 ///
